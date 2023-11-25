@@ -1,16 +1,50 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, createElement } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { CameraControls, AccumulativeShadows, RandomizedLight, PresentationControls, Grid, RoundedBox } from '@react-three/drei'
+import { RoundedBox, Sphere, Cone, Torus, TorusKnot, Dodecahedron, OrthographicCamera, OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import './App.css'
 
-const radius = 2.0
-const Cube = ({thetaStart, size, color }) => {
+// CONFIGS
+const cameraDist = 500
+const colorPalette = [
+  '#edc951',
+  '#eb6841',
+  '#cc2a36',
+  '#4f372d',
+  '#00a0b0'
+]
+const objTypes = [
+  {shape: RoundedBox, args:{}},
+  {shape: Sphere, args:{args:[0.7071]}},
+  {shape: Dodecahedron, args:{args:[0.7071]}},
+  {shape: Torus, args:{args:[0.5, 0.3]}},
+  {shape: TorusKnot, args:{args:[0.5, 0.2]}},
+]
+const radius = 200
+
+// CONSTS
+const thetaRad = (90-35.264)*Math.PI/180
+const cameraPos = [cameraDist*Math.sin(thetaRad)*Math.cos(Math.PI/4),cameraDist*Math.cos(thetaRad),cameraDist*Math.sin(thetaRad)*Math.sin(Math.PI/4)]
+
+const Material = ({color}) => {
+  // material for objs
+  return (
+    <meshStandardMaterial 
+      color={color} 
+      transparent={true} 
+      opacity={1.0}/>
+  )
+}
+
+const Item = ({index, thetaStart, size, color }) => {
+  // one of many shape objs
   const ref = useRef()
   let theta = thetaStart
-  let position = [radius*Math.cos(theta), 1, radius*Math.sin(theta)]
+  let position = [radius*Math.cos(theta), 0, radius*Math.sin(theta)]
   let rotX = 2 + Math.random()*5
   let rotY = 2 + Math.random()*5
+
   useFrame((state, delta) => {
+    // animate
     ref.current.rotation.x += delta/rotX
     ref.current.rotation.y += delta/rotY
     theta += delta/5
@@ -19,46 +53,42 @@ const Cube = ({thetaStart, size, color }) => {
   })
 
   return (
-    <mesh position={position} ref={ref} scale={size}>
-      <RoundedBox castShadow >
-        <meshPhysicalMaterial color={color}/>
-      </RoundedBox>
+    <mesh position={position} ref={ref} scale={[100,100,100]}>
+      {createElement(
+        objTypes[index].shape,
+        objTypes[index].args,
+        createElement(Material, {color:colorPalette[index]})
+      )}
     </mesh>
   )
 }
 
-const Floor = () => {
+
+const Scene = () => {
   return (
-    <mesh scale={[1000,1000,1000]} rotation={[-Math.PI/2, 0, 0]}>
-      <planeGeometry/>
-      <meshStandardMaterial color={"white"}/>
-    </mesh>
+    <>
+      <directionalLight intensity={1.0} position={[0,1000,0]}/>
+      <ambientLight intensity={0.2}/>
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-100,0]}>
+        <planeGeometry args={[10000,10000]}/>
+        <meshBasicMaterial color={'#222222'}/>
+      </mesh>
+      {objTypes.map((shape, count) =>
+        createElement(Item, {index:count, thetaStart:count*2*Math.PI/objTypes.length})
+      )}
+      <OrbitControls/>
+      <PerspectiveCamera
+        makeDefault
+        position={cameraPos}/>
+    </>
   )
 }
-
 
 const App = () => {
   return (
     <>
-      <Canvas shadows style={{ background: "darkgrey" }} camera={{ position: [5, 0, 5], fov: 35 }}>
-        {/* <Stage intensity={0.5} preset="rembrandt" shadows={{ type: 'accumulative', color: 'darkgrey', colorBlend: 2, opacity: 1 }} adjustCamera={1} environment="city"> */}
-        <directionalLight position={[0,3,3]} castShadow={true}/>
-        <ambientLight intensity={[0.2]} />
-        {/* <fog/> */}
-        {/* <Floor receiveShadow/>/ */}
-        {/* <Grid/> */}
-        {/* <PresentationControls> */}
-        <Cube castShadow thetaStart={0} size={[1,1,1]} color={"Orange"} />
-        <Cube castShadow thetaStart={Math.PI/3*1} size={[1,1,1]} color={"Red"} />
-        <Cube castShadow thetaStart={Math.PI/3*2} size={[1,1,1]} color={"Blue"} />
-        <Cube castShadow thetaStart={Math.PI/3*3} size={[1,1,1]} color={"Green"} />
-        <Cube castShadow thetaStart={Math.PI/3*4} size={[1,1,1]} color={"Purple"} />
-        <Cube castShadow thetaStart={Math.PI/3*5} size={[1,1,1]} color={"Grey"} />
-        {/* </PresentationControls> */}
-        {/* <AccumulativeShadows temporal frames={100} color="grey" colorBlend={2} toneMapped={true} alphaTest={0.75} opacity={2} scale={12}>
-          <RandomizedLight intensity={Math.PI} amount={8} radius={4} ambient={0.5} position={[5, 5, -10]} bias={0.001} />
-        </AccumulativeShadows> */}
-        <CameraControls makeDefault/>
+      <Canvas style={{ background: "#222222" }}>
+        <Scene/>
       </Canvas>
     </>
   )
