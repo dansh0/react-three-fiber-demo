@@ -1,11 +1,12 @@
 import React, { useRef, useState, createElement } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { RoundedBox, Sphere, Cone, Torus, TorusKnot, Dodecahedron, CubeCamera, MeshTransmissionMaterial, OrbitControls, PerspectiveCamera } from '@react-three/drei'
+import { RoundedBox, Sphere, Cone, Torus, TorusKnot, Dodecahedron, CubeCamera, MeshTransmissionMaterial, OrbitControls, PerspectiveCamera, Environment } from '@react-three/drei'
+// import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import './App.css'
 import { BackSide } from 'three'
 
 // CONFIGS
-const cameraDist = 500
+const cameraDist = 3000
 const colorPalette = [
   '#edc951',
   '#eb6841',
@@ -17,7 +18,36 @@ const radius = 200
 
 // CONSTS
 const thetaRad = (90-35.264)*Math.PI/180
-const cameraPos = [cameraDist*Math.sin(thetaRad)*Math.cos(Math.PI/4),cameraDist*Math.cos(thetaRad),cameraDist*Math.sin(thetaRad)*Math.sin(Math.PI/4)]
+const cameraRadius = cameraDist/3
+const cameraPos = [cameraRadius*Math.sin(thetaRad)*Math.cos(Math.PI/4),cameraRadius*Math.cos(thetaRad),cameraRadius*Math.sin(thetaRad)*Math.sin(Math.PI/4)]
+
+// Cube Map
+
+// new RGBELoader()
+//   .setPath( 'assets' )
+//   .load( 'industrial_sunset_puresky_2k.hdr', function ( texture ) {
+
+//     texture.mapping = THREE.EquirectangularReflectionMapping;
+
+//     scene.background = texture;
+//     scene.environment = texture;
+
+//   } );
+
+// //
+
+// cubeRenderTarget = new THREE.WebGLCubeRenderTarget( 256 );
+// cubeRenderTarget.texture.type = THREE.HalfFloatType;
+
+// cubeCamera = new THREE.CubeCamera( 1, 1000, cubeRenderTarget );
+
+// //
+
+// material = new THREE.MeshStandardMaterial( {
+//   envMap: cubeRenderTarget.texture,
+//   roughness: 0.05,
+//   metalness: 1
+// } );
 
 const Material = ({color}) => {
   // material for objs
@@ -33,7 +63,7 @@ const MirrorSphere = () => {
   return (
     <CubeCamera>
       {(texture) => (
-        <mesh>
+        <mesh scale={[100,100,100]}>
           <sphereGeometry args={[0.7071]}/>
           <meshStandardMaterial envMap={texture} roughness={0.05} metalness={1}/>
         </mesh>
@@ -84,48 +114,14 @@ const Scene = () => {
     <>
       <directionalLight intensity={1.0} position={[0,1000,0]}/>
       <ambientLight intensity={0.2}/>
-      {/* <mesh scale={[2000,1100,2000]} position={[0,450,0]}>
-        <boxGeometry/>
-        <meshStandardMaterial color={'#222222'} side={BackSide}/>
-      </mesh> */}
-      <mesh rotation={[-Math.PI/2,0,0]} position={[0,-100,0]}>
-        <planeGeometry args={[10000,10000]}/>
-        <meshBasicMaterial color={'#222222'}/>
-      </mesh>
-      <mesh rotation={[Math.PI/2,0,0]} position={[0,1000,0]}>
-        <planeGeometry args={[10000,10000]}/>
-        <meshBasicMaterial color={'#222222'}/>
-      </mesh>
-      <mesh rotation={[0,0,0]} position={[0,0,-1000]}>
-        <planeGeometry args={[10000,10000]}/>
-        <meshBasicMaterial color={'#222222'}/>
-      </mesh>
-      <mesh rotation={[-Math.PI,0,0]} position={[0,0,1000]}>
-        <planeGeometry args={[10000,10000]}/>
-        <meshBasicMaterial color={'#222222'}/>
-      </mesh>
-      <mesh rotation={[0,Math.PI/2,0]} position={[-1000,0,0]}>
-        <planeGeometry args={[10000,10000]}/>
-        <meshBasicMaterial color={'#222222'}/>
-      </mesh>
-      <mesh rotation={[0,-Math.PI/2,0]} position={[1000,0,0]}>
-        <planeGeometry args={[10000,10000]}/>
-        <meshBasicMaterial color={'#222222'}/>
-      </mesh>
+      <Environment files="emmarentia_2k.hdr" path="../src/assets/cubemaps" background/>
       {objTypes.map((shape, count) =>
         createElement(Item, {index:count, thetaStart:count*2*Math.PI/objTypes.length})
       )}
-      <CubeCamera>
-        {(texture) => (
-          <mesh scale={[100,100,100]}>
-            <sphereGeometry/>
-            <meshStandardMaterial envMap={texture} color={'#ffffff'} roughness={0.1} metalness={0.9}/>
-          </mesh>
-        )}
-      </CubeCamera>
+      <MirrorSphere/>
       <OrbitControls
         maxPolarAngle={Math.PI/2}
-        enableZoom={false}
+        enableZoom={true}
       />
       <PerspectiveCamera
         makeDefault
