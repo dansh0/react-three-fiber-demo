@@ -2,6 +2,8 @@
 
 Wanted to try some things out with R3F and drei
 
+![](https://github.com/dansh0/react-three-fiber-demo/blob/main/public/screenshot.png)
+
 Overall I'm not rushing to leave vanilla javascript for my three.js work, but I am impressed with the drei library particularly. R3F and drei are clearly trying to streamline the development time for new three.js programs. This is clear in how little code is needed to achieve this demo.
 
 Cubemaps from Poly Heaven
