@@ -1,8 +1,12 @@
-# React + Vite
+# React-Three-Fiber Demo
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Wanted to try some things out with R3F and drei
 
-Currently, two official plugins are available:
+Overall I'm not rushing to leave vanilla javascript for my three.js work, but I am impressed with the drei library particularly. R3F and drei are clearly trying to streamline the development time for new three.js programs. This is clear in how little code is needed to achieve this demo.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+Cubemaps from Poly Heaven
+
+Links:
+- [react-three-fiber](https://github.com/pmndrs/react-three-fiber)
+- [drei](https://github.com/pmndrs/drei)
+- [polyheaven](https://polyhaven.com/hdris)

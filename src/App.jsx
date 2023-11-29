@@ -1,4 +1,4 @@
-import React, { useRef, useState, createElement } from 'react'
+import React, { useRef, createElement } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { 
   RoundedBox, 
@@ -7,26 +7,29 @@ import {
   TorusKnot, 
   Dodecahedron, 
   CubeCamera, 
-  MeshTransmissionMaterial, 
   OrbitControls, 
   PerspectiveCamera, 
-  Environment, 
+  Environment,
   useEnvironment
 } from '@react-three/drei'
-// import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import './App.css'
 import { useControls, Leva } from 'leva'
-import { MixOperation } from 'three'
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
+import { EquirectangularReflectionMapping } from 'three'
 
+// ---------------------------------------------------
 // Demo of using THREE.js in React-Three-Fiber context
+// ---------------------------------------------------
 
-
+// -------
 // CONFIGS
+// -------
 
 const cameraDist = 600
 const cameraAngle = 15
 const partSize = 100
 const radius = 250
+const mirrorSphereSize = 150
 const colorPalette = [
   '#edc951',
   '#eb6841',
@@ -42,42 +45,12 @@ const cubemapList = [
 ]
 
 
+// ------
 // CONSTS
+// ------
 
 const cameraAngleRad = cameraAngle*Math.PI/180
 const cameraPos = [cameraDist*Math.cos(cameraAngleRad), cameraDist*Math.sin(cameraAngleRad), 0]
-
-
-// Elements
-  
-const MirrorSphere = () => {
-  // Central mirror-surfaced sphere
-  let mirrorSphereSize = 150
-  return (
-    <CubeCamera>
-      {(texture) => (
-        <mesh scale={[mirrorSphereSize,mirrorSphereSize,mirrorSphereSize]}>
-          <sphereGeometry args={[0.7071]}/>
-          <meshStandardMaterial envMap={texture} roughness={0.0} metalness={1}/>
-        </mesh>
-      )}
-    </CubeCamera>
-  )
-}
-
-const TransmissionGem = (color) => {
-  // Clear Dodecahedron
-  return (
-    // <CubeCamera>
-    //   {(texture) => (
-        <Dodecahedron args={[0.7071]}>
-          <MeshTransmissionMaterial transmission={0.3} roughness={0.5} color={'#cc2a36'}/>
-        </Dodecahedron>
-    //   )}
-    // </CubeCamera>
-  )
-}
-
 const objTypes = [
   {shape: RoundedBox, args:{}},
   {shape: Cone, args:{args:[0.7071]}},
@@ -85,6 +58,45 @@ const objTypes = [
   {shape: TorusKnot, args:{args:[0.5, 0.2]}},
   {shape: Dodecahedron, args:{args:[0.7071]}},
 ]
+const cubemapTex = []
+cubemapList.forEach(()=>{
+  cubemapTex.push(undefined)
+})
+
+
+// // ---------------
+// // Cubemap Loading
+// // ---------------
+// cubemapList.forEach((path, count) => {
+//     new RGBELoader()
+//       .setPath( "../src/assets/cubemaps/" )
+//       .load( path, function ( texture ) {
+//         texture.mapping = EquirectangularReflectionMapping
+//         cubemapTex[count] = texture
+//       })
+// })
+
+
+// --------
+// Elements
+// --------
+  
+const SelectedEnvironment = () => {
+  // Environment with GUI selector
+  let {cubemap} = useControls({'cubemap': {
+    value: 0,
+    min: 0,
+    max: 3,
+    step: 1,
+  }})
+  let rgbeTexture = useEnvironment({ files:cubemapList[cubemap], path:"../src/assets/cubemaps/" })
+  return (
+    <>
+      <Environment map={rgbeTexture} background/>
+    </>
+  )
+}  
+
 
 const Material = ({color}) => {
   // Material for objs
@@ -98,6 +110,7 @@ const Material = ({color}) => {
     />
   )
 }
+
 
 const Shape = ({index, thetaStart, texture }) => {
   // One of many shape objs
@@ -128,6 +141,7 @@ const Shape = ({index, thetaStart, texture }) => {
   )
 }
 
+
 const Shapes = (texture) => {
   // The collection of shapes (orbiting)
   let {numShapes} = useControls({'numShapes': {
@@ -146,21 +160,26 @@ const Shapes = (texture) => {
   )
 }
 
-const SelectedEnvironment = () => {
-  // Environment with GUI selector
-  let {cubemap} = useControls({'cubemap': {
-    value: 0,
-    min: 0,
-    max: 3,
-    step: 1,
-  }})
-  let rgbeTexture = useEnvironment({ files:cubemapList[cubemap], path:"../src/assets/cubemaps/" })
+
+const MirrorSphere = () => {
+  // Central mirror-surfaced sphere
+
   return (
-    <>
-      <Environment map={rgbeTexture} background/>
-    </>
+    <CubeCamera>
+      {(texture) => (
+        <mesh scale={[mirrorSphereSize,mirrorSphereSize,mirrorSphereSize]}>
+          <sphereGeometry args={[0.7071]}/>
+          <meshStandardMaterial envMap={texture} roughness={0.0} metalness={1}/>
+        </mesh>
+      )}
+    </CubeCamera>
   )
-}  
+}
+
+
+// -----
+// SCENE
+// -----
 
 const Scene = () => {
   // Env, obj, camera
@@ -180,6 +199,11 @@ const Scene = () => {
     </>
   )
 }
+
+
+// ---
+// APP
+// ---
 
 const App = () => {
   
