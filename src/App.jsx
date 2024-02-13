@@ -1,5 +1,5 @@
-import React, { useRef, createElement } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import React, { useRef, createElement, useEffect } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { 
   RoundedBox, 
   Torus, 
@@ -15,7 +15,8 @@ import {
 import './App.css'
 import { useControls, Leva } from 'leva'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import { EquirectangularReflectionMapping } from 'three'
+import { HDRCubeTextureLoader } from 'three/addons/loaders/HDRCubeTextureLoader.js';
+import { EquirectangularReflectionMapping, LinearFilter, PMREMGenerator, Texture } from 'three'
 
 // ---------------------------------------------------
 // Demo of using THREE.js in React-Three-Fiber context
@@ -38,10 +39,25 @@ const colorPalette = [
   '#00a0b0'
 ]
 const cubemapList = [
+  'fouriesburg_mountain_midday_1k.hdr',
+  'blocky_photo_studio_1k.hdr',
+  'snowy_forest_1k.hdr',
+  'hayloft_1k.hdr',
+  'industrial_sunset_puresky_1k.hdr',
+  'brown_photostudio_01_1k.hdr',
+  'emmarentia_1k.hdr',
+  'studio_small_06_1k.hdr',
+]
+
+const cubemapList2k = [
   'fouriesburg_mountain_midday_2k.hdr',
-  'emmarentia_2k.hdr',
+  'blocky_photo_studio_2k.hdr',
+  'snowy_forest_2k.hdr',
+  'hayloft_2k.hdr',
   'industrial_sunset_puresky_2k.hdr',
-  'studio_small_06_1k.hdr'
+  'brown_photostudio_01_2k.hdr',
+  'emmarentia_2k.hdr',
+  'studio_small_06_2k.hdr',
 ]
 
 
@@ -58,24 +74,53 @@ const objTypes = [
   {shape: TorusKnot, args:{args:[0.5, 0.2]}},
   {shape: Dodecahedron, args:{args:[0.7071]}},
 ]
-const cubemapTex = []
-cubemapList.forEach(()=>{
-  cubemapTex.push(undefined)
-})
-
 
 // // ---------------
 // // Cubemap Loading
 // // ---------------
-// cubemapList.forEach((path, count) => {
-//     new RGBELoader()
-//       .setPath( "../src/assets/cubemaps/" )
-//       .load( path, function ( texture ) {
-//         texture.mapping = EquirectangularReflectionMapping
-//         cubemapTex[count] = texture
-//       })
-// })
 
+const preloaded1kTextures = [];
+const preloaded2kTextures = [];
+
+// load placeholders
+for (let iMap=0; iMap<cubemapList.length; iMap++) {
+  preloaded1kTextures.push( new Texture() )
+  preloaded2kTextures.push( new Texture() )
+}
+
+// load the HDR maps
+const loader = new RGBELoader();
+let loadedNum = 0
+let loaded = false
+cubemapList.forEach((file, count) => {
+  loader.load('./cubemaps/' + file, hdrMap => {
+    preloaded1kTextures[count] = hdrMap;
+    loadedNum++
+    // mark loaded complete when all have loaded
+    loaded = (loadedNum == cubemapList.length)
+  })
+});
+
+let loadedNum2k = 0
+let loaded2k = false
+cubemapList2k.forEach((file, count) => {
+  loader.load('./cubemaps/' + file, hdrMap => {
+    preloaded2kTextures[count] = hdrMap;
+    loadedNum2k++
+    // mark loaded complete when all have loaded
+    loaded2k = (loadedNum2k == cubemapList2k.length)
+  })
+});
+
+// Function to keep checking loaded status until it is complete (for element rendering)
+const checkLoaded = (exitFunc, time) => {
+  // keep checking for texture load until it loads
+  if (!loaded) {
+    setTimeout(() => { checkLoaded(exitFunc, time) }, time)
+  } else {
+    exitFunc()
+  }
+}
 
 // --------
 // Elements
@@ -86,15 +131,50 @@ const SelectedEnvironment = () => {
   let {cubemap} = useControls({'cubemap': {
     value: 0,
     min: 0,
-    max: 3,
+    max: cubemapList.length-1,
     step: 1,
   }})
-  let rgbeTexture = useEnvironment({ files:cubemapList[cubemap], path:"../src/assets/cubemaps/" })
-  return (
-    <>
-      <Environment map={rgbeTexture} background/>
-    </>
-  )
+
+  // Load HDR
+  let loadedTexture = undefined
+  const { gl, scene } = useThree() // Get renderer and scene data
+  const pmremGen = new PMREMGenerator( gl ) 
+  pmremGen.compileEquirectangularShader()
+
+  useEffect(() => {
+    const convertToTexture = () => {
+      // convert the HDR map to a texture
+      let hdrMap = preloaded1kTextures[cubemap]
+      let texture = pmremGen.fromEquirectangular( hdrMap ).texture
+      hdrMap.mapping = EquirectangularReflectionMapping
+      hdrMap.minFilter = LinearFilter
+      hdrMap.magFilter = LinearFilter
+      hdrMap.needsUpdate = true
+      
+      // load env from low res
+      scene.environment = texture
+
+      // load background from high-res if possible
+      if (loaded2k) {
+        let hdrMap2k = preloaded2kTextures[cubemap]
+        let texture2k = pmremGen.fromEquirectangular( hdrMap2k ).texture
+        hdrMap2k.mapping = EquirectangularReflectionMapping
+        hdrMap2k.minFilter = LinearFilter
+        hdrMap2k.magFilter = LinearFilter
+        hdrMap2k.needsUpdate = true
+        scene.background = texture2k
+      } else {
+        scene.background = texture
+      }
+    }
+
+    // check if textures are loaded
+    checkLoaded(convertToTexture, 100)
+    
+
+  }, [scene, pmremGen])
+
+  return null
 }  
 
 
@@ -183,21 +263,24 @@ const MirrorSphere = () => {
 
 const Scene = () => {
   // Env, obj, camera
-
-  return (
-    <>
-      <SelectedEnvironment/>
-      <Shapes/>
-      <MirrorSphere/>
-      <OrbitControls
-        maxPolarAngle={Math.PI/2}
-        enableZoom={false}
-      />
-      <PerspectiveCamera
-        makeDefault
-        position={cameraPos}/>
-    </>
-  )
+  if (true) {
+    return (
+      <>
+        <SelectedEnvironment/>
+        <Shapes/>
+        <MirrorSphere/>
+        <OrbitControls
+          maxPolarAngle={Math.PI/2}
+          enableZoom={false}
+        />
+        <PerspectiveCamera
+          makeDefault
+          position={cameraPos}/>
+      </>
+    )
+  } else {
+    return null
+  }
 }
 
 
