@@ -79,44 +79,50 @@ const objTypes = [
 // // Cubemap Loading
 // // ---------------
 
-const preloaded1kTextures = [];
-const preloaded2kTextures = [];
+const preloaded1kTextures = []
+const preloaded2kTextures = []
+let loaded = []
+let loaded2k = []
 
 // load placeholders
 for (let iMap=0; iMap<cubemapList.length; iMap++) {
   preloaded1kTextures.push( new Texture() )
   preloaded2kTextures.push( new Texture() )
+  loaded.push( false )
+  loaded2k.push( false )
 }
 
 // load the HDR maps
-const loader = new RGBELoader();
+const loader = new RGBELoader()
+let fullyLoaded = false
 let loadedNum = 0
-let loaded = false
 cubemapList.forEach((file, count) => {
   loader.load('./cubemaps/' + file, hdrMap => {
-    preloaded1kTextures[count] = hdrMap;
+    preloaded1kTextures[count] = hdrMap
+    loaded[count] = true
     loadedNum++
     // mark loaded complete when all have loaded
-    loaded = (loadedNum == cubemapList.length)
+    fullyLoaded = (loadedNum == cubemapList.length)
   })
 });
 
+let fullyLoaded2k = false
 let loadedNum2k = 0
-let loaded2k = false
 cubemapList2k.forEach((file, count) => {
   loader.load('./cubemaps/' + file, hdrMap => {
-    preloaded2kTextures[count] = hdrMap;
+    preloaded2kTextures[count] = hdrMap
+    loaded2k[count] = true
     loadedNum2k++
     // mark loaded complete when all have loaded
-    loaded2k = (loadedNum2k == cubemapList2k.length)
+    fullyLoaded2k = (loadedNum2k == cubemapList2k.length)
   })
 });
 
 // Function to keep checking loaded status until it is complete (for element rendering)
-const checkLoaded = (exitFunc, time) => {
+const checkLoaded = (exitFunc, cubemap, flagArray, time) => {
   // keep checking for texture load until it loads
-  if (!loaded) {
-    setTimeout(() => { checkLoaded(exitFunc, time) }, time)
+  if (!flagArray[cubemap]) {
+    setTimeout(() => { checkLoaded(exitFunc, cubemap, flagArray, time) }, time)
   } else {
     exitFunc()
   }
@@ -155,7 +161,7 @@ const SelectedEnvironment = () => {
       scene.environment = texture
 
       // load background from high-res if possible
-      if (loaded2k) {
+      if (loaded2k[cubemap]) {
         let hdrMap2k = preloaded2kTextures[cubemap]
         let texture2k = pmremGen.fromEquirectangular( hdrMap2k ).texture
         hdrMap2k.mapping = EquirectangularReflectionMapping
@@ -169,8 +175,10 @@ const SelectedEnvironment = () => {
     }
 
     // check if textures are loaded
-    checkLoaded(convertToTexture, 100)
-    
+    checkLoaded(convertToTexture, cubemap, loaded, 100)
+
+    // check for high res textures loaded
+    checkLoaded(convertToTexture, cubemap, loaded2k, 500)
 
   }, [scene, pmremGen])
 
