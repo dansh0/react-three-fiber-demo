@@ -1,4 +1,4 @@
-import React, { useRef, createElement, useEffect } from 'react'
+import React, { useRef, createElement, useState, useEffect } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { 
   RoundedBox, 
@@ -9,13 +9,10 @@ import {
   CubeCamera, 
   OrbitControls, 
   PerspectiveCamera, 
-  Environment,
-  useEnvironment
 } from '@react-three/drei'
 import './App.css'
 import { useControls, Leva } from 'leva'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import { HDRCubeTextureLoader } from 'three/addons/loaders/HDRCubeTextureLoader.js';
 import { EquirectangularReflectionMapping, LinearFilter, PMREMGenerator, Texture } from 'three'
 
 // ---------------------------------------------------
@@ -79,60 +76,44 @@ const objTypes = [
 // // Cubemap Loading
 // // ---------------
 
-const preloaded1kTextures = []
-const preloaded2kTextures = []
-let loaded = []
-let loaded2k = []
+const loadPlaceholderTextures = () => {
+  // sets up array of placeholder textures to later be updated
+  const preloadedTextures = []
+  
+  // load placeholders
+  for (let iMap=0; iMap<cubemapList.length; iMap++) {
+    preloadedTextures.push( undefined )
+  }
 
-// load placeholders
-for (let iMap=0; iMap<cubemapList.length; iMap++) {
-  preloaded1kTextures.push( new Texture() )
-  preloaded2kTextures.push( new Texture() )
-  loaded.push( false )
-  loaded2k.push( false )
+  return preloadedTextures
 }
 
-// load the HDR maps
-const loader = new RGBELoader()
-let fullyLoaded = false
-let loadedNum = 0
-cubemapList.forEach((file, count) => {
-  loader.load('./cubemaps/' + file, hdrMap => {
-    preloaded1kTextures[count] = hdrMap
-    loaded[count] = true
-    loadedNum++
-    // mark loaded complete when all have loaded
-    fullyLoaded = (loadedNum == cubemapList.length)
-  })
-});
+const loadCubemapTextures = (setCubemapTextures, highRes=false) => {
+  // load the HDR maps
+  const loader = new RGBELoader()
 
-let fullyLoaded2k = false
-let loadedNum2k = 0
-cubemapList2k.forEach((file, count) => {
-  loader.load('./cubemaps/' + file, hdrMap => {
-    preloaded2kTextures[count] = hdrMap
-    loaded2k[count] = true
-    loadedNum2k++
-    // mark loaded complete when all have loaded
-    fullyLoaded2k = (loadedNum2k == cubemapList2k.length)
-  })
-});
+  console.log('loading images')
+  console.log(highRes)
 
-// Function to keep checking loaded status until it is complete (for element rendering)
-const checkLoaded = (exitFunc, cubemap, flagArray, time) => {
-  // keep checking for texture load until it loads
-  if (!flagArray[cubemap]) {
-    setTimeout(() => { checkLoaded(exitFunc, cubemap, flagArray, time) }, time)
-  } else {
-    exitFunc()
+  // choose high or low res
+  let fileList = (highRes) ? cubemapList2k : cubemapList
+
+  // load images, updating state for each
+  for (let iMap=0; iMap<fileList.length; iMap++) {
+    loader.load('./cubemaps/' + fileList[iMap], hdrMap => {
+      setCubemapTextures(prevTex => prevTex.map((tex, i) => {
+        return ((i==iMap) ? hdrMap : tex)
+      }))
+    })
   }
+
 }
 
 // --------
 // Elements
 // --------
   
-const SelectedEnvironment = () => {
+const SelectedEnvironment = ({cubemapTextures}) => {
   // Environment with GUI selector
   let {cubemap} = useControls({'cubemap': {
     value: 0,
@@ -142,47 +123,30 @@ const SelectedEnvironment = () => {
   }})
 
   // Load HDR
-  let loadedTexture = undefined
   const { gl, scene } = useThree() // Get renderer and scene data
   const pmremGen = new PMREMGenerator( gl ) 
   pmremGen.compileEquirectangularShader()
 
-  useEffect(() => {
-    const convertToTexture = () => {
-      // convert the HDR map to a texture
-      let hdrMap = preloaded1kTextures[cubemap]
-      let texture = pmremGen.fromEquirectangular( hdrMap ).texture
-      hdrMap.mapping = EquirectangularReflectionMapping
-      hdrMap.minFilter = LinearFilter
-      hdrMap.magFilter = LinearFilter
-      hdrMap.needsUpdate = true
-      
-      // load env from low res
-      scene.environment = texture
+  // convert the HDR map to a texture
+  let hdrMap = cubemapTextures[cubemap]
 
-      // load background from high-res if possible
-      if (loaded2k[cubemap]) {
-        let hdrMap2k = preloaded2kTextures[cubemap]
-        let texture2k = pmremGen.fromEquirectangular( hdrMap2k ).texture
-        hdrMap2k.mapping = EquirectangularReflectionMapping
-        hdrMap2k.minFilter = LinearFilter
-        hdrMap2k.magFilter = LinearFilter
-        hdrMap2k.needsUpdate = true
-        scene.background = texture2k
-      } else {
-        scene.background = texture
-      }
-    }
+  // attempt to modify textures, but ignore fail if not loaded yet
+  try {
 
-    // check if textures are loaded
-    checkLoaded(convertToTexture, cubemap, loaded, 100)
+    let texture = pmremGen.fromEquirectangular( hdrMap ).texture
+    hdrMap.mapping = EquirectangularReflectionMapping
+    hdrMap.minFilter = LinearFilter
+    hdrMap.magFilter = LinearFilter
+    hdrMap.needsUpdate = true
+    
+    // set texture to scene and background
+    scene.environment = texture
+    scene.background = texture
 
-    // check for high res textures loaded
-    checkLoaded(convertToTexture, cubemap, loaded2k, 500)
+  } finally {
+    return null
+  }
 
-  }, [scene, pmremGen])
-
-  return null
 }  
 
 
@@ -269,12 +233,13 @@ const MirrorSphere = () => {
 // SCENE
 // -----
 
-const Scene = () => {
+const Scene = ({cubemapTextures}) => {
   // Env, obj, camera
-  if (true) {
+  console.log(cubemapTextures[0])
+  if (cubemapTextures[0]) {
     return (
       <>
-        <SelectedEnvironment/>
+        <SelectedEnvironment cubemapTextures={cubemapTextures}/>
         <Shapes/>
         <MirrorSphere/>
         <OrbitControls
@@ -297,11 +262,29 @@ const Scene = () => {
 // ---
 
 const App = () => {
-  
+  // set up placeholder texture array
+  const [cubemapTextures, setCubemapTextures] = useState(() => {
+    return loadPlaceholderTextures()
+  })
+
+  // controls for high res or not
+  let {highRes} = useControls({'highRes': false})
+
+  const [loaded1k, setLoaded1k] = useState(false)
+  const [loaded2k, setLoaded2k] = useState(false)
+  useEffect(() => {
+    // load 1k textures only on the first render, 2k textures only when selected, and only once
+    if (!loaded1k || (!loaded2k && highRes)) {
+      loadCubemapTextures(setCubemapTextures, highRes)
+      if (highRes) { setLoaded2k(true) }
+      else { setLoaded1k(true) }
+    }
+  }, [highRes])
+
   return (
     <>
       <Canvas>
-        <Scene/>
+        <Scene cubemapTextures={cubemapTextures}/>
       </Canvas>
       <Leva collapsed/>
     </>
