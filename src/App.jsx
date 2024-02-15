@@ -9,11 +9,14 @@ import {
   CubeCamera, 
   OrbitControls, 
   PerspectiveCamera, 
+  Stats
 } from '@react-three/drei'
 import './App.css'
 import { useControls, Leva } from 'leva'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import { EquirectangularReflectionMapping, LinearFilter, PMREMGenerator, Texture } from 'three'
+import { EquirectangularReflectionMapping, LinearFilter, PMREMGenerator } from 'three'
+import { Progress } from 'react-sweet-progress'
+import "react-sweet-progress/lib/style.css"
 
 // ---------------------------------------------------
 // Demo of using THREE.js in React-Three-Fiber context
@@ -66,15 +69,15 @@ const cameraAngleRad = cameraAngle*Math.PI/180
 const cameraPos = [cameraDist*Math.cos(cameraAngleRad), cameraDist*Math.sin(cameraAngleRad), 0]
 const objTypes = [
   {shape: RoundedBox, args:{}},
-  {shape: Cone, args:{args:[0.7071]}},
-  {shape: Torus, args:{args:[0.5, 0.3]}},
-  {shape: TorusKnot, args:{args:[0.5, 0.2]}},
+  {shape: Cone, args:{args:[0.7071, 1, 64]}},
+  {shape: Torus, args:{args:[0.5, 0.3, 24, 96]}},
+  {shape: TorusKnot, args:{args:[0.5, 0.2, 124, 32]}},
   {shape: Dodecahedron, args:{args:[0.7071]}},
 ]
 
-// // ---------------
-// // Cubemap Loading
-// // ---------------
+// ---------------
+// Cubemap Loading
+// ---------------
 
 const loadPlaceholderTextures = () => {
   // sets up array of placeholder textures to later be updated
@@ -88,32 +91,52 @@ const loadPlaceholderTextures = () => {
   return preloadedTextures
 }
 
-const loadCubemapTextures = (setCubemapTextures, highRes=false) => {
+const loadCubemapTextures = (setCubemapTextures, setProgress, highRes=false) => {
   // load the HDR maps
   const loader = new RGBELoader()
+  
+  // load images recursively, updating state for each
+  loadNextCubeMap(0, setCubemapTextures, setProgress, highRes, loader)
+  
+}
 
-  console.log('loading images')
-  console.log(highRes)
-
+const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, loader) => {
+  // load next texture
+  
+  // progess per texture
+  let progressStep = 100*(1.0/cubemapList.length)
+  
   // choose high or low res
   let fileList = (highRes) ? cubemapList2k : cubemapList
+  
+  // load
+  let fileName = './cubemaps/' + fileList[index]
+  loader.load(fileName, hdrMap => {
+    // update texture in array
+    setCubemapTextures(prevTex => prevTex.map((tex, i) => {
+      return ((i==index) ? hdrMap : tex)
+    }))
 
-  // load images, updating state for each
-  for (let iMap=0; iMap<fileList.length; iMap++) {
-    loader.load('./cubemaps/' + fileList[iMap], hdrMap => {
-      setCubemapTextures(prevTex => prevTex.map((tex, i) => {
-        return ((i==iMap) ? hdrMap : tex)
-      }))
-    })
-  }
+    // start next load
+    if ((index + 1) < fileList.length) {
+      loadNextCubeMap(index+1, setCubemapTextures, setProgress, highRes, loader)
+    } else {
+      // done!
+    }
 
+  }, progress => {
+      //update progress
+      setProgress(parseInt(progressStep * (index + (progress.loaded/progress.total))))
+  }, error => {
+    console.error(error)
+  })
 }
 
 // --------
 // Elements
 // --------
   
-const SelectedEnvironment = ({cubemapTextures}) => {
+const SelectedEnvironment = ({cubemapTextures, progress}) => {
   // Environment with GUI selector
   let {cubemap} = useControls({'cubemap': {
     value: 0,
@@ -121,18 +144,18 @@ const SelectedEnvironment = ({cubemapTextures}) => {
     max: cubemapList.length-1,
     step: 1,
   }})
-
-  // Load HDR
+  
   const { gl, scene } = useThree() // Get renderer and scene data
-  const pmremGen = new PMREMGenerator( gl ) 
-  pmremGen.compileEquirectangularShader()
 
-  // convert the HDR map to a texture
-  let hdrMap = cubemapTextures[cubemap]
-
-  // attempt to modify textures, but ignore fail if not loaded yet
-  try {
-
+  if (progress>99) {
+    // Load HDR
+    const pmremGen = new PMREMGenerator( gl ) 
+    pmremGen.compileEquirectangularShader()
+  
+    // convert the HDR map to a texture
+    let hdrMap = cubemapTextures[cubemap]
+  
+    // modify textures for cubemap
     let texture = pmremGen.fromEquirectangular( hdrMap ).texture
     hdrMap.mapping = EquirectangularReflectionMapping
     hdrMap.minFilter = LinearFilter
@@ -142,10 +165,11 @@ const SelectedEnvironment = ({cubemapTextures}) => {
     // set texture to scene and background
     scene.environment = texture
     scene.background = texture
-
-  } finally {
-    return null
+  } else {
+    scene.background = undefined
   }
+
+  return null
 
 }  
 
@@ -233,13 +257,12 @@ const MirrorSphere = () => {
 // SCENE
 // -----
 
-const Scene = ({cubemapTextures}) => {
+const Scene = ({cubemapTextures, progress}) => {
   // Env, obj, camera
-  console.log(cubemapTextures[0])
-  if (cubemapTextures[0]) {
+  if (progress > 99) {
     return (
-      <>
-        <SelectedEnvironment cubemapTextures={cubemapTextures}/>
+      <Canvas>
+        <SelectedEnvironment cubemapTextures={cubemapTextures} progress={progress}/>
         <Shapes/>
         <MirrorSphere/>
         <OrbitControls
@@ -249,8 +272,41 @@ const Scene = ({cubemapTextures}) => {
         <PerspectiveCamera
           makeDefault
           position={cameraPos}/>
-      </>
+        {/* <Stats className="stats"/> */}
+      </Canvas>
     )
+  } else {
+    return (
+      <Canvas>
+        <SelectedEnvironment cubemapTextures={cubemapTextures} progress={progress}/>
+      </Canvas>
+    )
+  }
+}
+
+// --------
+// Progress
+// --------
+
+const ProgressBar = ({progress, highRes}) => {
+
+  // Show progress bar when loading textures
+  if (progress < 100) {
+    if (!highRes) {
+      return (
+        <div className="loading">
+        <Progress percent={progress} status="active"/>
+        <a>Loading Cubemaps</a>
+      </div>
+      )
+    } else {
+      return (
+        <div className="loading">
+          <Progress percent={progress} status="active"/>
+          <a>Loading High Resolution Cubemaps</a>
+        </div>
+      )
+    } 
   } else {
     return null
   }
@@ -268,24 +324,32 @@ const App = () => {
   })
 
   // controls for high res or not
-  let {highRes} = useControls({'highRes': false})
+  // let {highRes} = useControls({'highRes': false})
+  let highRes = false
 
+  // loading and loading state
+  const [progress, setProgress] = useState(0.0)
   const [loaded1k, setLoaded1k] = useState(false)
   const [loaded2k, setLoaded2k] = useState(false)
   useEffect(() => {
     // load 1k textures only on the first render, 2k textures only when selected, and only once
     if (!loaded1k || (!loaded2k && highRes)) {
-      loadCubemapTextures(setCubemapTextures, highRes)
+      setProgress(0)
+      loadCubemapTextures(setCubemapTextures, setProgress, highRes)
       if (highRes) { setLoaded2k(true) }
       else { setLoaded1k(true) }
+    }
+
+    // if unclicking highRes, refresh window to return to 1k textures (hacky but need to unload textures and kill load process)
+    if (loaded1k && !highRes) {
+      window.location.reload()
     }
   }, [highRes])
 
   return (
     <>
-      <Canvas>
-        <Scene cubemapTextures={cubemapTextures}/>
-      </Canvas>
+      <ProgressBar progress={progress} highRes={highRes}/>
+      <Scene cubemapTextures={cubemapTextures} progress={progress}/>
       <Leva collapsed/>
     </>
   )
