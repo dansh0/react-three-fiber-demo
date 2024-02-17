@@ -110,7 +110,12 @@ const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, loader
   let fileList = (highRes) ? cubemapList2k : cubemapList
   
   // load
-  let fileName = './cubemaps/' + fileList[index]
+  let fileName;
+  if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+    fileName = './cubemaps/' + fileList[index]
+  } else {
+    fileName = 'https://shores.design/r3f/cubemaps/' + fileList[index]
+  }
   loader.load(fileName, hdrMap => {
     // update texture in array
     setCubemapTextures(prevTex => prevTex.map((tex, i) => {
@@ -126,7 +131,9 @@ const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, loader
 
   }, progress => {
       //update progress
-      setProgress(parseInt(progressStep * (index + (progress.loaded/progress.total))))
+      if (!highRes) {
+        setProgress(parseInt(progressStep * (index + (progress.loaded/progress.total))))
+      }
   }, error => {
     console.error(error)
   })
@@ -324,8 +331,7 @@ const App = () => {
   })
 
   // controls for high res or not
-  // let {highRes} = useControls({'highRes': false})
-  let highRes = false
+  let {highRes} = useControls({'highRes': false})
 
   // loading and loading state
   const [progress, setProgress] = useState(0.0)
@@ -334,7 +340,7 @@ const App = () => {
   useEffect(() => {
     // load 1k textures only on the first render, 2k textures only when selected, and only once
     if (!loaded1k || (!loaded2k && highRes)) {
-      setProgress(0)
+      // setProgress(0)
       loadCubemapTextures(setCubemapTextures, setProgress, highRes)
       if (highRes) { setLoaded2k(true) }
       else { setLoaded1k(true) }
