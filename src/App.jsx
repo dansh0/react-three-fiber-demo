@@ -28,38 +28,8 @@ import Worker from './workers/RGBEWorker.js?worker'
 
 const cameraDist = 600
 const cameraAngle = 15
-const partSize = 100
-const radius = 250
-const mirrorSphereSize = 150
-const colorPalette = [
-  '#edc951',
-  '#eb6841',
-  '#cc2a36',
-  '#4f372d',
-  '#00a0b0'
-]
-const cubemapList = [
-  'fouriesburg_mountain_midday_1k.hdr',
-  'blocky_photo_studio_1k.hdr',
-  'snowy_forest_1k.hdr',
-  'hayloft_1k.hdr',
-  'industrial_sunset_puresky_1k.hdr',
-  // 'brown_photostudio_01_1k.hdr',
-  // 'emmarentia_1k.hdr',
-  // 'studio_small_06_1k.hdr',
-]
-
-const cubemapList2k = [
-  'fouriesburg_mountain_midday_2k.hdr',
-  'blocky_photo_studio_2k.hdr',
-  'snowy_forest_2k.hdr',
-  'hayloft_2k.hdr',
-  'industrial_sunset_puresky_2k.hdr',
-  // 'brown_photostudio_01_2k.hdr',
-  // 'emmarentia_2k.hdr',
-  // 'studio_small_06_2k.hdr',
-]
-
+const hdrFile = 'fouriesburg_mountain_midday_1k.hdr'
+const hdrFile2k = 'fouriesburg_mountain_midday_2k.hdr'
 
 // ------
 // CONSTS
@@ -67,29 +37,11 @@ const cubemapList2k = [
 
 const cameraAngleRad = cameraAngle*Math.PI/180
 const cameraPos = [cameraDist*Math.cos(cameraAngleRad), cameraDist*Math.sin(cameraAngleRad), 0]
-const objTypes = [
-  {shape: RoundedBox, args:{}},
-  {shape: Cone, args:{args:[0.7071, 1, 64]}},
-  {shape: Torus, args:{args:[0.5, 0.3, 24, 96]}},
-  {shape: TorusKnot, args:{args:[0.5, 0.2, 124, 32]}},
-  {shape: Dodecahedron, args:{args:[0.7071]}},
-]
 
 // ---------------
 // Cubemap Loading
 // ---------------
 
-const loadPlaceholderTextures = () => {
-  // sets up array of placeholder textures to later be updated
-  const preloadedTextures = []
-  
-  // load placeholders
-  for (let iMap=0; iMap<cubemapList.length; iMap++) {
-    preloadedTextures.push( undefined )
-  }
-
-  return preloadedTextures
-}
 
 const loadCubemapTextures = (setCubemapTextures, setProgress) => {
   // load the HDR maps using a worker thread
@@ -103,19 +55,7 @@ const loadCubemapTextures = (setCubemapTextures, setProgress) => {
 const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, worker) => {
   // load next texture
   
-  // progess per texture
-  let progressStep = 100*(1.0/cubemapList.length)
-  
-  // choose high or low res
-  let fileList = (highRes) ? cubemapList2k : cubemapList
-  
-  // load
-  let fileName;
-  if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-    fileName = '../../cubemaps/' + fileList[index]
-  } else {
-    fileName = 'https://shores.design/r3f/cubemaps/' + fileList[index]
-  }
+  let fileName = '../../cubemaps/' + fileList[index]
   
   // request worker load
   worker.postMessage(fileName)
@@ -179,7 +119,7 @@ const SelectedEnvironment = ({cubemapTextures, progress}) => {
   let {cubemap} = useControls({'cubemap': {
     value: 0,
     min: 0,
-    max: cubemapList.length-1,
+    max: hdrFile.length-1,
     step: 1,
   }})
   
@@ -341,8 +281,8 @@ const ProgressBar = ({progress}) => {
 
 const App = () => {
   // set up placeholder texture array
-  const [cubemapTextures, setCubemapTextures] = useState(() => {
-    return loadPlaceholderTextures()
+  const [cubemapTexture, setCubemapTexture] = useState(() => {
+    new DataTexture()
   })
 
   // loading and loading state
