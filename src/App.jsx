@@ -220,11 +220,12 @@ const Material = ({color}) => {
 }
 
 
-const Shape = ({index, thetaStart }) => {
+const Shape = ({index, thetaDelta }) => {
   // One of many shape objs
   const ref = useRef()
-  let theta = thetaStart
-  let position = [radius*Math.cos(theta), 0, radius*Math.sin(theta)]
+  let time = Date.now()
+  let pace = 1000*2*Math.PI //~30 second per revolution
+  let theta = time/pace + index*thetaDelta
   let rotX = 2 + Math.random()*5
   let rotY = 2 + Math.random()*5
   console.log('here!')
@@ -234,13 +235,13 @@ const Shape = ({index, thetaStart }) => {
     // animate
     ref.current.rotation.x += delta/rotX
     ref.current.rotation.y += delta/rotY
-    theta += delta/5
+    theta = Date.now()/pace + index*thetaDelta
     ref.current.position.x = radius*Math.cos(theta)
     ref.current.position.z = radius*Math.sin(theta)
   })
 
   return (
-    <mesh position={position} ref={ref} scale={[partSize,partSize,partSize]}>
+    <mesh ref={ref} scale={[partSize,partSize,partSize]}>
       {createElement(
         objTypes[index].shape,
         objTypes[index].args,
@@ -263,7 +264,7 @@ const Shapes = () => {
   return (
     <>
     {objTypes.slice(0,numShapes).map((shape, count) =>
-        createElement(Shape, {index:count, thetaStart:count*2*Math.PI/numShapes})
+        createElement(Shape, {index:count, thetaDelta:2*Math.PI/numShapes})
       )}
     </>
   )
