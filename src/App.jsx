@@ -91,12 +91,12 @@ const loadPlaceholderTextures = () => {
   return preloadedTextures
 }
 
-const loadCubemapTextures = (setCubemapTextures, setProgress, highRes=false) => {
-  // load the HDR maps
+const loadCubemapTextures = (setCubemapTextures, setProgress) => {
+  // load the HDR maps using a worker thread
   const worker = new Worker()
   
   // load images recursively, updating state for each
-  loadNextCubeMap(0, setCubemapTextures, setProgress, highRes, worker)
+  loadNextCubeMap(0, setCubemapTextures, setProgress, false, worker)
   
 }
 
@@ -137,16 +137,22 @@ const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, worker
     
       // start next load
       if ((index + 1) < fileList.length) {
+        // load next in this set
         loadNextCubeMap(index+1, setCubemapTextures, setProgress, highRes, worker)
+      } else if (!highRes && (index + 1) == fileList.length){
+        // start higher resolution loading
+        loadNextCubeMap(0, setCubemapTextures, setProgress, true, worker)
       } else {
         // done!
+        console.log('Loading Complete!')
       }
 
     } else if (message.data[0] == 'progress') {
       //update progress
-      let progress = message.data[1]
+      let progressPercent = message.data[1]
       if (!highRes) {
-        setProgress(parseInt(progressStep * (index + progress)))
+        let progress = parseInt(progressStep * (index + progressPercent)) // loaded textures + percent of current load
+        setProgress(prevProgress => (prevProgress<progress) ? progress : prevProgress) // don't allow backtracking
       }
 
     } else if (message.data[0] == 'error') {
@@ -189,12 +195,8 @@ const SelectedEnvironment = ({cubemapTextures, progress}) => {
   
     // modify textures for cubemap
     let texture = pmremGen.fromEquirectangular( hdrMap ).texture
-    // hdrMap.mapping = EquirectangularReflectionMapping
-    // hdrMap.minFilter = LinearFilter
-    // hdrMap.magFilter = LinearFilter
-    // hdrMap.needsUpdate = true
     
-    // set texture to scene and background
+    // set texture to environment and background
     scene.environment = texture
     scene.background = texture
   } else {
@@ -228,7 +230,6 @@ const Shape = ({index, thetaDelta }) => {
   let theta = time/pace + index*thetaDelta
   let rotX = 2 + Math.random()*5
   let rotY = 2 + Math.random()*5
-  console.log('here!')
 
   // Animate!
   useFrame((state, delta) => {
@@ -318,25 +319,16 @@ const Scene = ({cubemapTextures, progress}) => {
 // Progress
 // --------
 
-const ProgressBar = ({progress, highRes}) => {
+const ProgressBar = ({progress}) => {
 
   // Show progress bar when loading textures
   if (progress < 100) {
-    if (!highRes) {
-      return (
-        <div className="loading">
-        <Progress percent={progress} status="active"/>
-        <a>Loading Cubemaps</a>
-      </div>
-      )
-    } else {
       return (
         <div className="loading">
           <Progress percent={progress} status="active"/>
           <a>Loading High Resolution Cubemaps</a>
         </div>
       )
-    } 
   } else {
     return null
   }
@@ -353,31 +345,16 @@ const App = () => {
     return loadPlaceholderTextures()
   })
 
-  // controls for high res or not
-  let {highRes} = useControls({'highRes': false})
-
   // loading and loading state
   const [progress, setProgress] = useState(0.0)
-  const [loaded1k, setLoaded1k] = useState(false)
-  const [loaded2k, setLoaded2k] = useState(false)
   useEffect(() => {
     // load 1k textures only on the first render, 2k textures only when selected, and only once
-    if (!loaded1k || (!loaded2k && highRes)) {
-      // setProgress(0)
-      loadCubemapTextures(setCubemapTextures, setProgress, highRes)
-      if (highRes) { setLoaded2k(true) }
-      else { setLoaded1k(true) }
-    }
-
-    // if unclicking highRes, refresh window to return to 1k textures (hacky but need to unload textures and kill load process)
-    if (loaded1k && !highRes) {
-      window.location.reload()
-    }
-  }, [highRes])
+    loadCubemapTextures(setCubemapTextures, setProgress)
+  }, [])
 
   return (
     <>
-      <ProgressBar progress={progress} highRes={highRes}/>
+      <ProgressBar progress={progress}/>
       <Scene cubemapTextures={cubemapTextures} progress={progress}/>
       <Leva collapsed/>
     </>
