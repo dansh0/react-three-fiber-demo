@@ -13,10 +13,10 @@ import {
 } from '@react-three/drei'
 import './App.css'
 import { useControls, Leva } from 'leva'
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import { EquirectangularReflectionMapping, LinearFilter, PMREMGenerator } from 'three'
+import { EquirectangularReflectionMapping, LinearFilter, PMREMGenerator, DataTexture } from 'three'
 import { Progress } from 'react-sweet-progress'
 import "react-sweet-progress/lib/style.css"
+import Worker from './workers/RGBEWorker.js?worker'
 
 // ---------------------------------------------------
 // Demo of using THREE.js in React-Three-Fiber context
@@ -44,9 +44,9 @@ const cubemapList = [
   'snowy_forest_1k.hdr',
   'hayloft_1k.hdr',
   'industrial_sunset_puresky_1k.hdr',
-  'brown_photostudio_01_1k.hdr',
-  'emmarentia_1k.hdr',
-  'studio_small_06_1k.hdr',
+  // 'brown_photostudio_01_1k.hdr',
+  // 'emmarentia_1k.hdr',
+  // 'studio_small_06_1k.hdr',
 ]
 
 const cubemapList2k = [
@@ -55,9 +55,9 @@ const cubemapList2k = [
   'snowy_forest_2k.hdr',
   'hayloft_2k.hdr',
   'industrial_sunset_puresky_2k.hdr',
-  'brown_photostudio_01_2k.hdr',
-  'emmarentia_2k.hdr',
-  'studio_small_06_2k.hdr',
+  // 'brown_photostudio_01_2k.hdr',
+  // 'emmarentia_2k.hdr',
+  // 'studio_small_06_2k.hdr',
 ]
 
 
@@ -93,14 +93,14 @@ const loadPlaceholderTextures = () => {
 
 const loadCubemapTextures = (setCubemapTextures, setProgress, highRes=false) => {
   // load the HDR maps
-  const loader = new RGBELoader()
+  const worker = new Worker()
   
   // load images recursively, updating state for each
-  loadNextCubeMap(0, setCubemapTextures, setProgress, highRes, loader)
+  loadNextCubeMap(0, setCubemapTextures, setProgress, highRes, worker)
   
 }
 
-const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, loader) => {
+const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, worker) => {
   // load next texture
   
   // progess per texture
@@ -112,31 +112,56 @@ const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, loader
   // load
   let fileName;
   if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
-    fileName = './cubemaps/' + fileList[index]
+    fileName = '../../cubemaps/' + fileList[index]
   } else {
     fileName = 'https://shores.design/r3f/cubemaps/' + fileList[index]
   }
-  loader.load(fileName, hdrMap => {
-    // update texture in array
-    setCubemapTextures(prevTex => prevTex.map((tex, i) => {
-      return ((i==index) ? hdrMap : tex)
-    }))
+  
+  // request worker load
+  worker.postMessage(fileName)
 
-    // start next load
-    if ((index + 1) < fileList.length) {
-      loadNextCubeMap(index+1, setCubemapTextures, setProgress, highRes, loader)
-    } else {
-      // done!
-    }
-
-  }, progress => {
-      //update progress
-      if (!highRes) {
-        setProgress(parseInt(progressStep * (index + (progress.loaded/progress.total))))
+  // respond to load
+  worker.onmessage = (message) => {
+    if (message.data[0] == 'hdrData') {
+      let hdrMap = new DataTexture(new Uint16Array(message.data[1]), message.data[2], message.data[3], 1023, 1016, 300, 1001, 1001, 1006, 1006, 1, 'srgb-linear')
+      hdrMap.flipY = true
+      hdrMap.mapping = EquirectangularReflectionMapping
+      hdrMap.minFilter = LinearFilter
+      hdrMap.magFilter = LinearFilter
+      hdrMap.needsUpdate = true
+  
+      // update texture in array
+      setCubemapTextures(prevTex => prevTex.map((tex, i) => {
+        return ((i==index) ? hdrMap : tex)
+      }))
+    
+      // start next load
+      if ((index + 1) < fileList.length) {
+        loadNextCubeMap(index+1, setCubemapTextures, setProgress, highRes, worker)
+      } else {
+        // done!
       }
-  }, error => {
-    console.error(error)
-  })
+
+    } else if (message.data[0] == 'progress') {
+      //update progress
+      let progress = message.data[1]
+      if (!highRes) {
+        setProgress(parseInt(progressStep * (index + progress)))
+      }
+
+    } else if (message.data[0] == 'error') {
+      // report error
+      let error = message.data[1]
+      console.error(error)
+    
+    } else {
+      // unknown message channel
+      console.warn('Unknown Worker Message Channel')
+      console.warn(message.data[0])
+      console.warn(message.data[1])
+    }
+  }
+
 }
 
 // --------
@@ -164,10 +189,10 @@ const SelectedEnvironment = ({cubemapTextures, progress}) => {
   
     // modify textures for cubemap
     let texture = pmremGen.fromEquirectangular( hdrMap ).texture
-    hdrMap.mapping = EquirectangularReflectionMapping
-    hdrMap.minFilter = LinearFilter
-    hdrMap.magFilter = LinearFilter
-    hdrMap.needsUpdate = true
+    // hdrMap.mapping = EquirectangularReflectionMapping
+    // hdrMap.minFilter = LinearFilter
+    // hdrMap.magFilter = LinearFilter
+    // hdrMap.needsUpdate = true
     
     // set texture to scene and background
     scene.environment = texture
@@ -195,13 +220,14 @@ const Material = ({color}) => {
 }
 
 
-const Shape = ({index, thetaStart, texture }) => {
+const Shape = ({index, thetaStart }) => {
   // One of many shape objs
   const ref = useRef()
   let theta = thetaStart
   let position = [radius*Math.cos(theta), 0, radius*Math.sin(theta)]
   let rotX = 2 + Math.random()*5
   let rotY = 2 + Math.random()*5
+  console.log('here!')
 
   // Animate!
   useFrame((state, delta) => {
@@ -218,14 +244,14 @@ const Shape = ({index, thetaStart, texture }) => {
       {createElement(
         objTypes[index].shape,
         objTypes[index].args,
-        createElement(Material, {color:colorPalette[index], texture:texture})
+        createElement(Material, {color:colorPalette[index]})
       )}
     </mesh>
   )
 }
 
 
-const Shapes = (texture) => {
+const Shapes = () => {
   // The collection of shapes (orbiting)
   let {numShapes} = useControls({'numShapes': {
     value: 5,
@@ -237,7 +263,7 @@ const Shapes = (texture) => {
   return (
     <>
     {objTypes.slice(0,numShapes).map((shape, count) =>
-        createElement(Shape, {index:count, thetaStart:count*2*Math.PI/numShapes, texture:texture})
+        createElement(Shape, {index:count, thetaStart:count*2*Math.PI/numShapes})
       )}
     </>
   )
@@ -283,11 +309,7 @@ const Scene = ({cubemapTextures, progress}) => {
       </Canvas>
     )
   } else {
-    return (
-      <Canvas>
-        <SelectedEnvironment cubemapTextures={cubemapTextures} progress={progress}/>
-      </Canvas>
-    )
+    return null
   }
 }
 
