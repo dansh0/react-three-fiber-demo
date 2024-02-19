@@ -326,7 +326,7 @@ const ProgressBar = ({progress}) => {
       return (
         <div className="loading">
           <Progress percent={progress} status="active"/>
-          <a>Loading High Resolution Cubemaps</a>
+          <a>Loading Cubemaps</a>
         </div>
       )
   } else {
