@@ -13,6 +13,12 @@ Links:
 - [drei](https://github.com/pmndrs/drei)
 - [polyhaven](https://polyhaven.com/hdris)
 
+## Live Demo
+
+Run this code here:
+
+[LIVE DEMO](https://shores.design/index.php/react-three-fiber-demo/)
+
 ## Optimizations
 
 ### Preview Cubemap Loading
