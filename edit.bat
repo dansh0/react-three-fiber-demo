@@ -1,2 +1,3 @@
 powershell -Command "(gc ./dist/index.html) -replace '/assets/', 'https://shores.design/r3f/assets/' | Out-File -encoding ASCII ./dist/index.html"
 powershell -Command "(gc ./dist/index.html) -replace '/favicon.ico', 'https://shores.design/r3f/favicon.ico' | Out-File -encoding ASCII ./dist/index.html"
+powershell -Command "Get-ChildItem -Path ./dist/assets -Filter 'index-*.js' | ForEach-Object {(Get-Content $_.FullName) -replace '/assets/', 'https://shores.design/r3f/assets/' | Out-File -Encoding ASCII $_.FullName}"

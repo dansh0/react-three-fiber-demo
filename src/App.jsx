@@ -67,6 +67,7 @@ const cubemapList2k = [
 
 const cameraAngleRad = cameraAngle*Math.PI/180
 const cameraPos = [cameraDist*Math.cos(cameraAngleRad), cameraDist*Math.sin(cameraAngleRad), 0]
+const progressStep = 100*(1.0/cubemapList.length) // progess per texture
 const objTypes = [
   {shape: RoundedBox, args:{}},
   {shape: Cone, args:{args:[0.7071, 1, 64]}},
@@ -74,6 +75,7 @@ const objTypes = [
   {shape: TorusKnot, args:{args:[0.5, 0.2, 124, 32]}},
   {shape: Dodecahedron, args:{args:[0.7071]}},
 ]
+  
 
 // ---------------
 // Cubemap Loading
@@ -91,20 +93,17 @@ const loadPlaceholderTextures = () => {
   return preloadedTextures
 }
 
-const loadCubemapTextures = (setCubemapTextures, setProgress) => {
+const loadCubemapTextures = (setCubemapTextures, setLoaded, setProgress) => {
   // load the HDR maps using a worker thread
   const worker = new Worker()
   
   // load images recursively, updating state for each
-  loadNextCubeMap(0, setCubemapTextures, setProgress, false, worker)
+  loadNextCubeMap(0, setCubemapTextures, setLoaded, setProgress, false, worker)
   
 }
 
-const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, worker) => {
+const loadNextCubeMap = (index, setCubemapTextures, setLoaded, setProgress, highRes, worker) => {
   // load next texture
-  
-  // progess per texture
-  let progressStep = 100*(1.0/cubemapList.length)
   
   // choose high or low res
   let fileList = (highRes) ? cubemapList2k : cubemapList
@@ -134,14 +133,17 @@ const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, worker
       setCubemapTextures(prevTex => prevTex.map((tex, i) => {
         return ((i==index) ? hdrMap : tex)
       }))
+
+      // update loaded
+      if (!highRes) { setLoaded(index) }
     
       // start next load
       if ((index + 1) < fileList.length) {
         // load next in this set
-        loadNextCubeMap(index+1, setCubemapTextures, setProgress, highRes, worker)
+        loadNextCubeMap(index+1, setCubemapTextures, setLoaded, setProgress, highRes, worker)
       } else if (!highRes && (index + 1) == fileList.length){
         // start higher resolution loading
-        loadNextCubeMap(0, setCubemapTextures, setProgress, true, worker)
+        loadNextCubeMap(0, setCubemapTextures, setLoaded, setProgress, true, worker)
       } else {
         // done!
         console.log('Loading Complete!')
@@ -174,7 +176,7 @@ const loadNextCubeMap = (index, setCubemapTextures, setProgress, highRes, worker
 // Elements
 // --------
   
-const SelectedEnvironment = ({cubemapTextures, progress}) => {
+const SelectedEnvironment = ({cubemapTextures, loaded}) => {
   // Environment with GUI selector
   let {cubemap} = useControls({'cubemap': {
     value: 0,
@@ -182,10 +184,13 @@ const SelectedEnvironment = ({cubemapTextures, progress}) => {
     max: cubemapList.length-1,
     step: 1,
   }})
+
+  // prevent non-loaded selection
+  if (cubemap > loaded) { cubemap = loaded }
   
   const { gl, scene } = useThree() // Get renderer and scene data
 
-  if (progress>99) {
+  if (loaded >= 0) {
     // Load HDR
     const pmremGen = new PMREMGenerator( gl ) 
     pmremGen.compileEquirectangularShader()
@@ -279,7 +284,7 @@ const MirrorSphere = () => {
     <CubeCamera>
       {(texture) => (
         <mesh scale={[mirrorSphereSize,mirrorSphereSize,mirrorSphereSize]}>
-          <sphereGeometry args={[0.7071]}/>
+          <sphereGeometry args={[0.7071, 64, 32]}/>
           <meshStandardMaterial envMap={texture} roughness={0.0} metalness={1}/>
         </mesh>
       )}
@@ -292,17 +297,18 @@ const MirrorSphere = () => {
 // SCENE
 // -----
 
-const Scene = ({cubemapTextures, progress}) => {
+const Scene = ({cubemapTextures, progress, loaded}) => {
   // Env, obj, camera
-  if (progress > 99) {
+  if (loaded >= 0) {
     return (
       <Canvas>
-        <SelectedEnvironment cubemapTextures={cubemapTextures} progress={progress}/>
+        <SelectedEnvironment cubemapTextures={cubemapTextures} loaded={loaded}/>
         <Shapes/>
         <MirrorSphere/>
         <OrbitControls
           maxPolarAngle={Math.PI/2}
           enableZoom={false}
+          enablePan={false}
         />
         <PerspectiveCamera
           makeDefault
@@ -319,17 +325,23 @@ const Scene = ({cubemapTextures, progress}) => {
 // Progress
 // --------
 
-const ProgressBar = ({progress}) => {
-
+const ProgressBar = ({progress, loaded}) => {
   // Show progress bar when loading textures
-  if (progress < 100) {
+  if (progress < 99) {
+    if ((progress+(progressStep/2)) < loaded*progressStep) {
+      // bug with progress, hide bar
+      return null
+    } else {
+      // show progress bar
       return (
         <div className="loading">
           <Progress percent={progress} status="active"/>
-          <a>Loading Cubemaps</a>
+          {/* <a>Loading Cubemaps</a> */}
         </div>
       )
+    }
   } else {
+    // fully loaded, hide bar
     return null
   }
 }
@@ -347,15 +359,16 @@ const App = () => {
 
   // loading and loading state
   const [progress, setProgress] = useState(0.0)
+  const [loaded, setLoaded] = useState(-1)
   useEffect(() => {
-    // load 1k textures only on the first render, 2k textures only when selected, and only once
-    loadCubemapTextures(setCubemapTextures, setProgress)
+    // load 1k textures only on the first render, 2k textures only once complete, and only once
+    loadCubemapTextures(setCubemapTextures, setLoaded, setProgress)
   }, [])
 
   return (
     <>
-      <ProgressBar progress={progress}/>
-      <Scene cubemapTextures={cubemapTextures} progress={progress}/>
+      <ProgressBar progress={progress} loaded={loaded}/>
+      <Scene cubemapTextures={cubemapTextures} progress={progress} loaded={loaded}/>
       <Leva collapsed/>
     </>
   )
