@@ -13,6 +13,12 @@ Links:
 - [drei](https://github.com/pmndrs/drei)
 - [polyhaven](https://polyhaven.com/hdris)
 
+To run yourself, use the following:
+```
+npm install
+npm run dev
+```
+
 ## Live Demo
 
 Run this code here:
