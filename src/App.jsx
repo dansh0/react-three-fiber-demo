@@ -22,7 +22,7 @@ const cameraDist = 600
 const cameraAngle = 180
 const mirrorSphereSize = 200
 const hdrFile = 'fouriesburg_mountain_midday_1k.hdr'
-const hdrFile2k = 'fouriesburg_mountain_midday_2k.hdr'
+const hdrFile4k = 'fouriesburg_mountain_midday_4k.hdr'
 
 // ------
 // CONSTS
@@ -62,7 +62,7 @@ const loadCubemapTexture = (setCubemapTexture) => {
 
       if (!loadedFlag) {
         loadedFlag = true
-        fileName = '../../cubemaps/' + hdrFile2k
+        fileName = '../../cubemaps/' + hdrFile4k
         worker.postMessage(fileName)
       }
   }
